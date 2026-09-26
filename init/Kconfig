@@ -2044,4 +2044,3 @@ config ASN1
 source "kernel/Kconfig.locks"
 
 
-source "init/sar_ramdisk/Kconfig"

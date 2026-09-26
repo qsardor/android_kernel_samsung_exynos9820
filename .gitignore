@@ -3,3 +3,13 @@
 *.patch
 out/
 toolchain/
+*.tar
+*.img
+prebuilts/*.img
+prebuilts/*.tar
+prebuilts/AIK/image-new.img
+prebuilts/AIK/split_img/boot.img-kernel
+prebuilts/AIK/ramdisk-new.cpio*
+prebuilts/AIK/split_img/boot.img-ramdisk.cpio.empty
+__pycache__/
+*.pyc

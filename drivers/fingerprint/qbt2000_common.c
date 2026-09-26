@@ -208,6 +208,7 @@ static struct device_attribute *fp_attrs[] = {
 
 #if defined(ENABLE_SENSORS_FPRINT_SECURE)
 int fpsensor_goto_suspend = 0;
+EXPORT_SYMBOL(fpsensor_goto_suspend);
 
 int fps_resume_set(void) {
 	int rc = 0;
