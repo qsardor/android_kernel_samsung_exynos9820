@@ -2,11 +2,6 @@ name: Samsung Exynos 9820/9825 Kernel CI
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - gorhanhee
-    tags:
-      - 'v*'
 
 jobs:
   build:
@@ -17,11 +12,6 @@ jobs:
       matrix:
         device:
           - d2xks
-          - d2s
-          - d2x
-          - beyond1lte
-          - beyond2lte
-          - beyond0lte
 
     steps:
       - name: Checkout Kernel Source
@@ -36,7 +26,6 @@ jobs:
             build-essential bc bison flex libssl-dev libelf-dev \
             libncurses5 libtinfo5 libncurses-dev zip cpio \
             python3 curl rsync liblz4-tool
-          # Create libtinfo.so.5 / libncurses.so.5 fallback symlinks if not provided
           for lib in libtinfo libncurses; do
             if [ ! -f /usr/lib/x86_64-linux-gnu/${lib}.so.5 ] && [ -f /usr/lib/x86_64-linux-gnu/${lib}.so.6 ]; then
               sudo ln -sf /usr/lib/x86_64-linux-gnu/${lib}.so.6 /usr/lib/x86_64-linux-gnu/${lib}.so.5
@@ -57,14 +46,3 @@ jobs:
         with:
           name: ${{ matrix.device }}_KSUN_v3.4.1_Odin_tar
           path: prebuilts/*.tar
-
-      - name: Publish GitHub Release (on tag)
-        if: startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@v3
-        with:
-          files: prebuilts/*.tar
-          name: ${{ github.ref_name }}
-          draft: false
-          prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
