@@ -1,56 +1,70 @@
-name: Samsung Exynos9820 Kernel Build
+name: Samsung Exynos 9820/9825 Kernel CI
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - gorhanhee
+    tags:
+      - 'v*'
 
 jobs:
   build:
+    name: Build Kernel (${{ matrix.device }})
+    runs-on: ubuntu-22.04
     strategy:
+      fail-fast: false
       matrix:
-        model:
-          - beyond0lte
-          - beyond0lteks
-          - beyond1lte
-          - beyond1lteks
-          - beyond2lte
-          - beyond2lteks
-          - beyondx
-          - beyondxks
-          - d1
-          - d1xks
+        device:
+          - d2xks
           - d2s
           - d2x
-          - d2xks
-        mode:
-          - ksun
-    runs-on: ubuntu-latest 
+          - beyond1lte
+          - beyond2lte
+          - beyond0lte
 
     steps:
-    - name: Import kernel source
-      uses: actions/checkout@v4  
-      
-    - name: Install required package
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y \
-          build-essential git libssl-dev bc flex bison \
-          libncurses5-dev libncurses-dev cpio zip unzip \
-          python3 curl rsync kmod libelf-dev \
-          lz4 tar openssl python3-pip \
-          gcc clang
-        wget http://security.ubuntu.com/ubuntu/pool/universe/n/ncurses/libtinfo5_6.3-2ubuntu0.1_amd64.deb && sudo dpkg -i libtinfo5_6.3-2ubuntu0.1_amd64.deb   
+      - name: Checkout Kernel Source
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
 
-    - name: Setting permission
-      run: |    
-        chmod +x build.sh
-        chmod -R +x prebuilts/    
+      - name: Install Build Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential bc bison flex libssl-dev libelf-dev \
+            libncurses5 libtinfo5 libncurses-dev zip cpio \
+            python3 curl rsync liblz4-tool
+          # Create libtinfo.so.5 / libncurses.so.5 fallback symlinks if not provided
+          for lib in libtinfo libncurses; do
+            if [ ! -f /usr/lib/x86_64-linux-gnu/${lib}.so.5 ] && [ -f /usr/lib/x86_64-linux-gnu/${lib}.so.6 ]; then
+              sudo ln -sf /usr/lib/x86_64-linux-gnu/${lib}.so.6 /usr/lib/x86_64-linux-gnu/${lib}.so.5
+            fi
+            if [ ! -f /lib/x86_64-linux-gnu/${lib}.so.5 ] && [ -f /lib/x86_64-linux-gnu/${lib}.so.6 ]; then
+              sudo ln -sf /lib/x86_64-linux-gnu/${lib}.so.6 /lib/x86_64-linux-gnu/${lib}.so.5
+            fi
+          done
 
-    - name: Cooking Kernel
-      run: ./build.sh ${{ matrix.model }} ${{ matrix.mode }}
+      - name: Compile Kernel & Package Odin Archive
+        run: |
+          chmod +x build_kernel.sh
+          chmod -R +x prebuilts/
+          ./build_kernel.sh ${{ matrix.device }}
 
-    - name : Upload flashable file
-      uses: actions/upload-artifact@v4
-      with:
-        name: ${{ matrix.model }}_${{ matrix.mode }}_Kernel_File
-        path: |
-          prebuilts/GoRhanHee_Kernel_for_${{ matrix.model }}_${{ matrix.mode }}.zip
+      - name: Upload Flashable Artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.device }}_KSUN_v3.4.1_Odin_tar
+          path: prebuilts/*.tar
+
+      - name: Publish GitHub Release (on tag)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v3
+        with:
+          files: prebuilts/*.tar
+          name: ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

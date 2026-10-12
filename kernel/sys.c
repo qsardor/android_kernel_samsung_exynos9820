@@ -47,6 +47,9 @@
 
 #include <linux/compat.h>
 #include <linux/syscalls.h>
+#ifdef CONFIG_KSU
+extern int ksu_handle_setresuid(uid_t old_uid, uid_t new_uid);
+#endif
 #include <linux/kprobes.h>
 #include <linux/user_namespace.h>
 #include <linux/binfmts.h>
@@ -789,6 +792,10 @@ SYSCALL_DEFINE3(setresuid, uid_t, ruid, uid_t, euid, uid_t, suid)
 	retval = security_task_fix_setuid(new, old, LSM_SETID_RES);
 	if (retval < 0)
 		goto error;
+
+#ifdef CONFIG_KSU
+	ksu_handle_setresuid(old->uid.val, new->uid.val);
+#endif
 
 	return commit_creds(new);
 

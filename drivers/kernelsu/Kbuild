@@ -87,18 +87,21 @@ endif
 
 # Calculate version if git version is available
 ifdef KSU_GIT_VERSION_VALID
-$(eval KSU_VERSION=$(shell expr 30000 + $(KSU_GIT_VERSION)))
+$(eval KSU_VERSION=$(shell expr 30000 + $(KSU_GIT_VERSION) + 289))
 $(info -- KernelSU-Next version: $(KSU_VERSION))
 else
 # If there is no .git directory, use default version
 $(warning "KSU_GIT_VERSION not defined! It is better to make KernelSU-Next a git repository!")
-KSU_VERSION_FALLBACK := 33004
+KSU_VERSION_FALLBACK := 33333
 $(info -- KernelSU-Next version fallback: $(KSU_VERSION_FALLBACK))
 KSU_VERSION := $(KSU_VERSION_FALLBACK)
 endif
 
 # Allow integrators to pin the reported version (e.g. when backporting
 # onto release branches where the commit count does not match releases)
+# legacy: keep version derived from commit count, with a +289 offset so
+# the reported ksuver stays in line with the manager versionCode
+# (maintainer preference, #1549)
 ifdef KSU_VERSION_OVERRIDE
 KSU_VERSION := $(KSU_VERSION_OVERRIDE)
 $(info -- KernelSU-Next version override: $(KSU_VERSION))
@@ -108,7 +111,8 @@ ccflags-y += -DKSU_VERSION=$(KSU_VERSION)
 ifdef KSU_GIT_VERSION_VALID
 $(eval KSU_VERSION_TAG=$(KSU_GIT_TAG))
 else
-KSU_VERSION_TAG_FALLBACK := v3.2.0-legacy
+$(warning "KSU_VERSION_TAG not defined! It is better to make KernelSU-Next a git submodule!")
+KSU_VERSION_TAG_FALLBACK := v3.4.1
 KSU_VERSION_TAG=$(KSU_VERSION_TAG_FALLBACK)
 endif
 
@@ -135,7 +139,7 @@ endif
 $(info -- KernelSU-Next Manager signature size: $(KSU_NEXT_MANAGER_SIZE))
 $(info -- KernelSU-Next Manager signature hash: $(KSU_NEXT_MANAGER_HASH))
 
-# RKSU: checks for available hook
+# KSU: checks for available hook
 ## Logic flipped for HAVE_KSU_HOOK: 0 is success, 1 is failure
 HAVE_KSU_HOOK ?= 1
 

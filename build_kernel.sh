@@ -12,6 +12,15 @@ AIK_DIR="${ROOT_DIR}/prebuilts/AIK"
 echo "=== Building Kernel for ${DEVICE} (${SOC}) ==="
 
 # Toolchains
+if [ ! -d "${ROOT_DIR}/toolchain/clang" ]; then
+    echo "[*] Toolchain not found, downloading CFP Clang & GCC toolchain..."
+    TOOLCHAIN_URL="https://github.com/GoRhanHee/exynos9820_toolchain/releases/download/toolchain/toolchain.tar.xz"
+    curl -fsSL "$TOOLCHAIN_URL" -o /tmp/toolchain.tar.xz
+    tar -xf /tmp/toolchain.tar.xz -C "${ROOT_DIR}"
+    rm -f /tmp/toolchain.tar.xz
+    echo "[+] Toolchain acquired successfully."
+fi
+
 CLANG_BIN="${ROOT_DIR}/toolchain/clang/host/linux-x86/clang-4639204-cfp-jopp/bin"
 GCC_BIN="${ROOT_DIR}/toolchain/gcc-cfp/gcc-cfp-jopp-only/aarch64-linux-android-4.9/bin"
 export PATH="${CLANG_BIN}:${GCC_BIN}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
@@ -22,6 +31,8 @@ export ANDROID_MAJOR_VERSION=s
 export CC="clang.real"
 export CLANG_TRIPLE=aarch64-linux-gnu-
 export CROSS_COMPILE=aarch64-linux-android-
+export KSU_VERSION_OVERRIDE=33333
+export KSU_VERSION_TAG_OVERRIDE="v3.4.1"
 
 mkdir -p "${OUT_DIR}"
 
@@ -52,7 +63,7 @@ echo "[4/4] Creating dt.img, dtbo.img and Odin flashable tar..."
 ./prebuilts/mkdtimg cfg_create "${ROOT_DIR}/prebuilts/dt.img" "${ROOT_DIR}/prebuilts/dtconfigs/${SOC}.cfg" -d "${OUT_DIR}/arch/arm64/boot/dts/exynos"
 ./prebuilts/mkdtimg cfg_create "${ROOT_DIR}/prebuilts/dtbo.img" "${ROOT_DIR}/prebuilts/dtconfigs/${DEVICE}.cfg" -d "${OUT_DIR}/arch/arm64/boot/dts/samsung"
 
-TAR_NAME="N976N_KSUN_33004_Fixed.tar"
+TAR_NAME="N976N_KSUN_33333_v3.4.1.tar"
 cd "${ROOT_DIR}/prebuilts"
 tar -cvf "${TAR_NAME}" boot.img dt.img dtbo.img
 cd "${ROOT_DIR}"
@@ -60,3 +71,6 @@ cd "${ROOT_DIR}"
 echo "=== BUILD SUCCESSFUL ==="
 echo "Flashable Odin tar: ${ROOT_DIR}/prebuilts/${TAR_NAME}"
 ls -lh "${ROOT_DIR}/prebuilts/${TAR_NAME}"
+mkdir -p /mnt/c/Users/Sardor/.gemini/antigravity/scratch
+cp -f "${ROOT_DIR}/prebuilts/${TAR_NAME}" /mnt/c/Users/Sardor/.gemini/antigravity/scratch/
+echo "Copied ${TAR_NAME} to scratch directory."
