@@ -31,8 +31,6 @@ export ANDROID_MAJOR_VERSION=s
 export CC="clang.real"
 export CLANG_TRIPLE=aarch64-linux-gnu-
 export CROSS_COMPILE=aarch64-linux-android-
-export KSU_VERSION_OVERRIDE=33333
-export KSU_VERSION_TAG_OVERRIDE="v3.4.1"
 
 mkdir -p "${OUT_DIR}"
 

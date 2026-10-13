@@ -181,7 +181,7 @@ int susfs_get_sus_su_working_mode(void);
 int susfs_sus_su(struct st_sus_su* __user user_info);
 #endif
 /* susfs_init */
-void susfs_init(void);
+int susfs_init(void);
 int susfs_handle_sys_reboot(unsigned int cmd, void __user *arg);
 void susfs_run_try_umount_for_current_mnt_ns(void);
 

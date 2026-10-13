@@ -1,4 +1,6 @@
 #include <linux/version.h>
+#include <linux/init.h>
+#include <linux/syscalls.h>
 #include <linux/cred.h>
 #include <linux/fs.h>
 #include <linux/slab.h>
@@ -18,9 +20,67 @@
 
 static spinlock_t susfs_spin_lock;
 
-extern bool susfs_is_current_ksu_domain(void);
-#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
-extern void ksu_try_umount(const char *mnt, bool check_mnt, int flags, uid_t uid);
+#ifdef CONFIG_KSU
+extern bool is_ksu_domain(void);
+extern bool is_zygote(const struct cred *cred);
+
+bool susfs_is_current_ksu_domain(void)
+{
+	return is_ksu_domain();
+}
+
+bool susfs_is_current_zygote_domain(void)
+{
+	return is_zygote(current_cred());
+}
+#else
+bool susfs_is_current_ksu_domain(void)
+{
+	return false;
+}
+
+bool susfs_is_current_zygote_domain(void)
+{
+	return false;
+}
+#endif
+
+void ksu_try_umount(const char *mnt, bool check_mnt, int flags, uid_t uid)
+{
+	struct path path;
+	int err = kern_path(mnt, 0, &path);
+	(void)check_mnt;
+	(void)uid;
+	if (err)
+		return;
+	if (path.dentry != path.mnt->mnt_root) {
+		path_put(&path);
+		return;
+	}
+	path_put(&path);
+	{
+		char __user *usermnt = (char __user *)mnt;
+		mm_segment_t old_fs = get_fs();
+		set_fs(KERNEL_DS);
+		sys_umount(usermnt, flags);
+		set_fs(old_fs);
+	}
+}
+
+#ifdef CONFIG_KSU_SUSFS_TRY_UMOUNT
+extern void susfs_try_umount(uid_t target_uid);
+
+void susfs_try_umount_all(uid_t uid)
+{
+	susfs_try_umount(uid);
+	ksu_try_umount("/system", true, 0, uid);
+	ksu_try_umount("/system_ext", true, 0, uid);
+	ksu_try_umount("/vendor", true, 0, uid);
+	ksu_try_umount("/product", true, 0, uid);
+	ksu_try_umount("/odm", true, 0, uid);
+	ksu_try_umount("/data/adb/modules", false, MNT_DETACH, uid);
+	ksu_try_umount("/debug_ramdisk", true, MNT_DETACH, uid);
+}
 #endif
 
 #ifdef CONFIG_KSU_SUSFS_ENABLE_LOG
@@ -902,14 +962,20 @@ out:
 #endif // #ifdef CONFIG_KSU_SUSFS_SUS_SU
 
 /* susfs_init */
-void susfs_init(void) {
+static bool susfs_is_initialized = false;
+int __init susfs_init(void) {
+	if (susfs_is_initialized)
+		return 0;
+	susfs_is_initialized = true;
 	spin_lock_init(&susfs_spin_lock);
 #ifdef CONFIG_KSU_SUSFS_SPOOF_UNAME
 	spin_lock_init(&susfs_uname_spin_lock);
 	susfs_my_uname_init();
 #endif
 	SUSFS_LOGI("susfs is initialized! version: " SUSFS_VERSION " \n");
+	return 0;
 }
+core_initcall(susfs_init);
 
 /* No module exit is needed becuase it should never be a loadable kernel module */
 //void __init susfs_exit(void)
