@@ -44,6 +44,7 @@ make O=out ARCH=arm64 olddefconfig
 echo "[+] Verifying KernelSU configuration in out/.config..."
 grep "^CONFIG_KSU=y" out/.config || { echo "FATAL: CONFIG_KSU is not set!"; exit 1; }
 grep "^CONFIG_KSU_MANUAL_HOOK=y" out/.config || { echo "FATAL: CONFIG_KSU_MANUAL_HOOK is not set!"; exit 1; }
+grep "^CONFIG_KSU_SUSFS=y" out/.config || { echo "FATAL: CONFIG_KSU_SUSFS is not set!"; exit 1; }
 grep "^CONFIG_SOC_EXYNOS9825=y" out/.config || { echo "FATAL: CONFIG_SOC_EXYNOS9825 is not set!"; exit 1; }
 
 echo "[2/4] Compiling kernel Image and DTBs..."
@@ -63,7 +64,7 @@ echo "[4/4] Creating dt.img, dtbo.img and Odin flashable tar..."
 ./prebuilts/mkdtimg cfg_create "${ROOT_DIR}/prebuilts/dt.img" "${ROOT_DIR}/prebuilts/dtconfigs/${SOC}.cfg" -d "${OUT_DIR}/arch/arm64/boot/dts/exynos"
 ./prebuilts/mkdtimg cfg_create "${ROOT_DIR}/prebuilts/dtbo.img" "${ROOT_DIR}/prebuilts/dtconfigs/${DEVICE}.cfg" -d "${OUT_DIR}/arch/arm64/boot/dts/samsung"
 
-TAR_NAME="N976N_KSUN_33333_v3.4.1.tar"
+TAR_NAME="N976N_KSUN_33333_SUSFS_v1.5.5.tar"
 cd "${ROOT_DIR}/prebuilts"
 tar -cvf "${TAR_NAME}" boot.img dt.img dtbo.img
 cd "${ROOT_DIR}"

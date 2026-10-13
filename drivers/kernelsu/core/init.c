@@ -101,6 +101,10 @@ module_param_named(bundled, ksu_bundled, bool, 0);
 
 int __init kernelsu_init(void)
 {
+#ifdef CONFIG_KSU_SUSFS
+	extern void susfs_init(void);
+	susfs_init();
+#endif
 #ifdef KSU_MANAGER_PACKAGE
 	pr_info("welcome to KernelSU version " __stringify(KERNEL_SU_VERSION) ", package name " KSU_MANAGER_PACKAGE "\n");
 #else

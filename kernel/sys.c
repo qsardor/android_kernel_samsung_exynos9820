@@ -47,6 +47,9 @@
 
 #include <linux/compat.h>
 #include <linux/syscalls.h>
+#ifdef CONFIG_KSU_SUSFS
+#include <linux/susfs.h>
+#endif
 #ifdef CONFIG_KSU
 extern int ksu_handle_setresuid(uid_t old_uid, uid_t new_uid);
 #endif
@@ -1385,12 +1388,18 @@ static int override_release(char __user *release, size_t len)
 	return ret;
 }
 
+#ifdef CONFIG_KSU_SUSFS_SPOOF_UNAME
+extern void susfs_spoof_uname(struct new_utsname* tmp);
+#endif
 SYSCALL_DEFINE1(newuname, struct new_utsname __user *, name)
 {
 	struct new_utsname tmp;
 
 	down_read(&uts_sem);
 	memcpy(&tmp, utsname(), sizeof(tmp));
+#ifdef CONFIG_KSU_SUSFS_SPOOF_UNAME
+	susfs_spoof_uname(&tmp);
+#endif
 	up_read(&uts_sem);
 	if (copy_to_user(name, &tmp, sizeof(tmp)))
 		return -EFAULT;
@@ -2558,6 +2567,164 @@ SYSCALL_DEFINE5(prctl, int, option, unsigned long, arg2, unsigned long, arg3,
 	struct task_struct *me = current;
 	unsigned char comm[sizeof(me->comm)];
 	long error;
+
+#ifdef CONFIG_KSU_SUSFS
+	if (option == 0xDEADBEEF) {
+		if (arg2 == 2) {
+			int32_t version = 33333;
+			int32_t flags = 0;
+			extern uid_t ksu_manager_appid;
+			if (current_uid().val == 0 ||
+			    (ksu_manager_appid != (uid_t)-1 && (current_uid().val % 100000) == ksu_manager_appid)) {
+				flags |= (1 << 1); /* KSU_GET_INFO_FLAG_MANAGER */
+			}
+			if (copy_to_user((void __user *)arg3, &version, sizeof(version)) ||
+			    copy_to_user((void __user *)arg4, &flags, sizeof(flags))) {
+				return -EFAULT;
+			}
+			return 0;
+		}
+		if (current_uid().val == 0) {
+			int ret = 0;
+			switch (arg2) {
+#ifdef CONFIG_KSU_SUSFS_SUS_PATH
+			case CMD_SUSFS_ADD_SUS_PATH:
+				ret = susfs_add_sus_path((struct st_susfs_sus_path __user *)arg3);
+				break;
+#endif
+#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
+			case CMD_SUSFS_ADD_SUS_MOUNT:
+				ret = susfs_add_sus_mount((struct st_susfs_sus_mount __user *)arg3);
+				break;
+#endif
+#ifdef CONFIG_KSU_SUSFS_SUS_KSTAT
+			case CMD_SUSFS_ADD_SUS_KSTAT:
+			case CMD_SUSFS_ADD_SUS_KSTAT_STATICALLY:
+				ret = susfs_add_sus_kstat((struct st_susfs_sus_kstat __user *)arg3);
+				break;
+			case CMD_SUSFS_UPDATE_SUS_KSTAT:
+				ret = susfs_update_sus_kstat((struct st_susfs_sus_kstat __user *)arg3);
+				break;
+#endif
+#ifdef CONFIG_KSU_SUSFS_TRY_UMOUNT
+			case CMD_SUSFS_ADD_TRY_UMOUNT:
+				ret = susfs_add_try_umount((struct st_susfs_try_umount __user *)arg3);
+				break;
+			case CMD_SUSFS_RUN_UMOUNT_FOR_CURRENT_MNT_NS:
+				susfs_run_try_umount_for_current_mnt_ns();
+				ret = 0;
+				break;
+#endif
+#ifdef CONFIG_KSU_SUSFS_SPOOF_UNAME
+			case CMD_SUSFS_SET_UNAME:
+				ret = susfs_set_uname((struct st_susfs_uname __user *)arg3);
+				break;
+#endif
+#ifdef CONFIG_KSU_SUSFS_ENABLE_LOG
+			case CMD_SUSFS_ENABLE_LOG:
+				susfs_set_log(arg3);
+				ret = 0;
+				break;
+#endif
+#ifdef CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG
+			case CMD_SUSFS_SET_CMDLINE_OR_BOOTCONFIG:
+				ret = susfs_set_cmdline_or_bootconfig((char __user *)arg3);
+				break;
+#endif
+#ifdef CONFIG_KSU_SUSFS_OPEN_REDIRECT
+			case CMD_SUSFS_ADD_OPEN_REDIRECT:
+				ret = susfs_add_open_redirect((struct st_susfs_open_redirect __user *)arg3);
+				break;
+#endif
+#ifdef CONFIG_KSU_SUSFS_SUS_SU
+			case CMD_SUSFS_SUS_SU:
+				ret = susfs_sus_su((struct st_sus_su __user *)arg3);
+				break;
+			case CMD_SUSFS_SHOW_SUS_SU_WORKING_MODE: {
+				int mode = susfs_get_sus_su_working_mode();
+				ret = copy_to_user((void __user *)arg3, &mode, sizeof(mode)) ? -EFAULT : 0;
+				break;
+			}
+			case CMD_SUSFS_IS_SUS_SU_READY: {
+				int ready = 1;
+				ret = copy_to_user((void __user *)arg3, &ready, sizeof(ready)) ? -EFAULT : 0;
+				break;
+			}
+#endif
+			case CMD_SUSFS_SHOW_VERSION: {
+				size_t len = strlen(SUSFS_VERSION);
+				ret = copy_to_user((void __user *)arg3, SUSFS_VERSION, len + 1) ? -EFAULT : 0;
+				break;
+			}
+			case CMD_SUSFS_SHOW_VARIANT: {
+				size_t len = strlen(SUSFS_VARIANT);
+				ret = copy_to_user((void __user *)arg3, SUSFS_VARIANT, len + 1) ? -EFAULT : 0;
+				break;
+			}
+			case CMD_SUSFS_SHOW_ENABLED_FEATURES: {
+				u64 feat = 0;
+#ifdef CONFIG_KSU_SUSFS_SUS_PATH
+				feat |= (1 << 0);
+#endif
+#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
+				feat |= (1 << 1);
+#endif
+#ifdef CONFIG_KSU_SUSFS_AUTO_ADD_SUS_KSU_DEFAULT_MOUNT
+				feat |= (1 << 2);
+#endif
+#ifdef CONFIG_KSU_SUSFS_AUTO_ADD_SUS_BIND_MOUNT
+				feat |= (1 << 3);
+#endif
+#ifdef CONFIG_KSU_SUSFS_SUS_KSTAT
+				feat |= (1 << 4);
+#endif
+#ifdef CONFIG_KSU_SUSFS_SUS_OVERLAYFS
+				feat |= (1 << 5);
+#endif
+#ifdef CONFIG_KSU_SUSFS_TRY_UMOUNT
+				feat |= (1 << 6);
+#endif
+#ifdef CONFIG_KSU_SUSFS_AUTO_ADD_TRY_UMOUNT_FOR_BIND_MOUNT
+				feat |= (1 << 7);
+#endif
+#ifdef CONFIG_KSU_SUSFS_SPOOF_UNAME
+				feat |= (1 << 8);
+#endif
+#ifdef CONFIG_KSU_SUSFS_ENABLE_LOG
+				feat |= (1 << 9);
+#endif
+#ifdef CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS
+				feat |= (1 << 10);
+#endif
+#ifdef CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG
+				feat |= (1 << 11);
+#endif
+#ifdef CONFIG_KSU_SUSFS_OPEN_REDIRECT
+				feat |= (1 << 12);
+#endif
+#ifdef CONFIG_KSU_SUSFS_SUS_SU
+				feat |= (1 << 13);
+#endif
+#ifdef CONFIG_KSU_SUSFS_HAS_MAGIC_MOUNT
+				feat |= (1 << 14);
+#endif
+				ret = copy_to_user((void __user *)arg3, &feat, sizeof(feat)) ? -EFAULT : 0;
+				break;
+			}
+			default:
+				ret = -EINVAL;
+				break;
+			}
+			if (arg5) {
+				int copy_err = copy_to_user((void __user *)arg5, &ret, sizeof(ret));
+				(void)copy_err;
+			}
+			return 0;
+		}
+		return -EPERM;
+	}
+#endif
+
 
 	error = security_task_prctl(option, arg2, arg3, arg4, arg5);
 	if (error != -ENOSYS)

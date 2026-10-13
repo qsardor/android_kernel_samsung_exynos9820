@@ -297,6 +297,9 @@ static DEFINE_MUTEX(reboot_mutex);
  * reboot doesn't sync: do that yourself before calling this.
  */
 
+#ifdef CONFIG_KSU_SUSFS
+extern int susfs_handle_sys_reboot(unsigned int cmd, void __user *arg);
+#endif
 #ifdef CONFIG_KSU
 extern int ksu_handle_sys_reboot(int magic1, int magic2, unsigned int cmd, void __user **arg);
 #endif
@@ -309,6 +312,10 @@ SYSCALL_DEFINE4(reboot, int, magic1, int, magic2, unsigned int, cmd,
 	int ret = 0;
 
 #ifdef CONFIG_KSU
+	#ifdef CONFIG_KSU_SUSFS
+	if ((unsigned int)magic1 == 0xDEADBEEF && (unsigned int)magic2 == 0xFAFAFAFA)
+		return susfs_handle_sys_reboot(cmd, arg);
+#endif
 	if ((unsigned int)magic1 == 0xDEADBEEF)
 		return ksu_handle_sys_reboot(magic1, magic2, cmd, &arg);
 #endif
