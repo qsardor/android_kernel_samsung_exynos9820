@@ -11,25 +11,31 @@ on:
         options:
           - d2x
           - d1x
+      ksu_version:
+        description: 'KernelSU-Next Version/Tag (e.g. v3.4.3)'
+        required: true
+        default: 'v3.4.3'
+        type: string
   push:
     branches:
       - lineage-23.2
-    paths-ignore:
-      - '**.md'
     tags:
       - 'v*'
 
+permissions:
+  contents: write
+
 jobs:
   build:
-    name: Build LineageOS 23.2 Kernel (${{ github.event.inputs.device || 'd2x' }})
+    name: Build LineageOS 23.2 Kernel (${{ github.event.inputs.device || 'd2x' }}) - KSU ${{ github.event.inputs.ksu_version || 'v3.4.3' }}
     runs-on: ubuntu-22.04
 
     steps:
       - name: Checkout Source Code
-        uses: actions/checkout@v7
+        uses: actions/checkout@v4
         with:
           submodules: recursive
-          fetch-depth: 1
+          fetch-depth: 0
 
       - name: Install Build Dependencies
         run: |
@@ -37,7 +43,7 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             build-essential bc bison flex libssl-dev libelf-dev \
             libncurses5 libtinfo5 libncurses-dev zip cpio \
-            python3 curl rsync liblz4-tool git zstd wget \
+            python3 curl rsync liblz4-tool git \
             gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu
           for lib in libtinfo libncurses; do
             if [ ! -f /usr/lib/x86_64-linux-gnu/${lib}.so.5 ] && [ -f /usr/lib/x86_64-linux-gnu/${lib}.so.6 ]; then
@@ -52,24 +58,47 @@ jobs:
         run: |
           chmod +x build_lineage.sh
           chmod -R +x prebuilts/
-          ./build_lineage.sh ${{ github.event.inputs.device || 'd2x' }}
+          ./build_lineage.sh ${{ github.event.inputs.device || 'd2x' }} ${{ github.event.inputs.ksu_version || 'v3.4.3' }}
 
       - name: Upload Flashable Artifacts
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
-          name: ${{ github.event.inputs.device || 'd2x' }}_LineageOS23.2_KSUN_v3.4.2
+          name: ${{ github.event.inputs.device || 'd2x' }}_LineageOS23.2_KSUN_${{ github.event.inputs.ksu_version || 'v3.4.3' }}
           path: |
             prebuilts/*.img
             prebuilts/*.zip
 
-      - name: Publish GitHub Release (on tag)
-        if: startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@v3
+      - name: Determine Release Information
+        id: release_info
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            TAG_NAME="${GITHUB_REF#refs/tags/}"
+          else
+            TAG_NAME="lineage-23.2-${{ github.event.inputs.ksu_version || 'v3.4.3' }}"
+          fi
+          echo "tag_name=${TAG_NAME}" >> $GITHUB_OUTPUT
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ steps.release_info.outputs.tag_name }}
+          name: LineageOS 23.2 Kernel (${{ github.event.inputs.device || 'd2x' }}) - KernelSU-Next ${{ github.event.inputs.ksu_version || 'v3.4.3' }}
+          body: |
+            ### LineageOS 23.2 (Android 16) Kernel Flashable Package
+            - **Target Device:** Samsung Galaxy Note 10+ 5G (`${{ github.event.inputs.device || 'd2x' }}` / Exynos 9825)
+            - **Root Framework:** KernelSU-Next `${{ github.event.inputs.ksu_version || 'v3.4.3' }}` (Manual Ring 0 Hooks)
+            - **Kernel Version:** Linux 4.14.356 (OpenELA)
+            - **Headless Display Fix:** Integrated MIPI LCD uninit / panel bypass
+            - **Anti-Disconnect Fix:** Persistent ADB gadget USB state
+
+            #### Flashable Artifacts
+            - `boot_lineage_ksu_${{ github.event.inputs.device || 'd2x' }}.img` (Fastboot / Heimdall / TWRP Image)
+            - `lineage-23.2_ksunext_${{ github.event.inputs.device || 'd2x' }}_signed.zip` (TWRP / Lineage Recovery Flashable Zip)
+
+            > Created by Antigravity & Q.S@RDOR
           files: |
             prebuilts/*.img
             prebuilts/*.zip
-          name: ${{ github.ref_name }}
           draft: false
           prerelease: false
         env:

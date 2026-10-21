@@ -1,9 +1,10 @@
 # android_kernel_samsung_exynos9820
 
-Production-grade Linux 4.14 kernels for Samsung Exynos 9820/9825 devices, engineered for headless edge computing, LineageOS 23.2 (Android 16), Stock One UI 5.1 (Android 12), and KernelSU-Next with automated GitHub Actions CI/CD.
+Production-grade Linux 4.14 kernels for Samsung Exynos 9820/9825 devices, engineered for headless edge computing, LineageOS 23.2 (Android 16), Stock One UI 5.1 (Android 12), and KernelSU-Next with automated GitHub Actions CI/CD and direct GitHub Releases.
 
 [![LineageOS 23.2 CI](https://github.com/qsardor/android_kernel_samsung_exynos9820/actions/workflows/build_lineage.yml/badge.svg?branch=lineage-23.2)](https://github.com/qsardor/android_kernel_samsung_exynos9820/actions/workflows/build_lineage.yml)
 [![Stock One UI CI](https://github.com/qsardor/android_kernel_samsung_exynos9820/actions/workflows/build.yml/badge.svg?branch=susfs-next-gen)](https://github.com/qsardor/android_kernel_samsung_exynos9820/actions/workflows/build.yml)
+[![GitHub Releases](https://img.shields.io/github/v/release/qsardor/android_kernel_samsung_exynos9820?color=success&label=Release)](https://github.com/qsardor/android_kernel_samsung_exynos9820/releases)
 [![License: GPL-2.0](https://img.shields.io/badge/License-GPL--2.0-blue.svg)](LICENSE)
 
 ---
@@ -16,7 +17,7 @@ Production-grade Linux 4.14 kernels for Samsung Exynos 9820/9825 devices, engine
 > 1. **MIPI LCD Hardware Bypass (`drivers/video/fbdev/exynos/dpu20/panels/common_mipi_lcd.c`):** Neutralizes display driver panic loops when the device boots without an active AMOLED panel connected.
 > 2. **USB ConfigFS Anti-Disconnect (`drivers/usb/gadget/configfs.c`):** Blocks Android userspace lockscreen and charging policies from dropping USB data lines or unregistering UDC gadgets, guaranteeing unbroken Root ADB access over USB and Wi-Fi.
 > 3. **Normal Boot Enforcer (`boot.img-cmdline`):** Pre-injected with `androidboot.super_partition=system androidboot.mode=normal` to ensure deterministic normal boot directly from partition `boot` (`sda14`), eliminating recovery boot traps.
-> 4. **Automated AIK Repackaging:** Includes integrated Android Image Kitchen (AIK) logic to output both raw `boot.img` and flashable recovery `.zip` packages on every build.
+> 4. **Automated AIK Repackaging & Release Publishing:** Generates both direct `boot.img` and recovery `.zip` packages on every build, automatically publishing them to [GitHub Releases](https://github.com/qsardor/android_kernel_samsung_exynos9820/releases).
 
 ---
 
@@ -24,7 +25,7 @@ Production-grade Linux 4.14 kernels for Samsung Exynos 9820/9825 devices, engine
 
 | Branch | Target Operating System | Linux Kernel | Toolchain | Root & Stealth Stack | CI/CD Workflow |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **`lineage-23.2`** | LineageOS 23.2 (Android 16) | `4.14.356-openela-rc1` | Neutron Clang 24 (`antman`) | KernelSU-Next v3.4.2 (Ring 0 Hooks) | [build_lineage.yml](.github/workflows/build_lineage.yml) |
+| **`lineage-23.2`** | LineageOS 23.2 (Android 16) | `4.14.356-openela-rc1` | Neutron Clang 24 (`antman`) | KernelSU-Next v3.4.2 / v3.4.3 (Ring 0 Hooks) | [build_lineage.yml](.github/workflows/build_lineage.yml) |
 | **`susfs-next-gen`** | Stock One UI 5.1 (Android 12) | `4.14.113` | Samsung CFP Clang 6.0 + GCC 4.9 | KernelSU-Next v3.4.2 + SuSFS v1.5.5 | [build.yml](.github/workflows/build.yml) |
 
 ---
@@ -36,30 +37,32 @@ Kernel compilation is offloaded to GitHub Actions runners to preserve local disk
 ### Trigger Remote Cloud Build (GitHub CLI)
 
 ```bash
-# Build LineageOS 23.2 (Android 16) Kernel for Galaxy Note 10+ 5G (d2x)
-gh workflow run "build_lineage.yml" --repo qsardor/android_kernel_samsung_exynos9820 --ref lineage-23.2 -f device=d2x
+# Build LineageOS 23.2 (Android 16) Kernel with KernelSU-Next v3.4.3 (Default)
+gh workflow run "build_lineage.yml" --repo qsardor/android_kernel_samsung_exynos9820 --ref lineage-23.2 -f device=d2x -f ksu_version=v3.4.3
+
+# Build LineageOS 23.2 with KernelSU-Next v3.4.2
+gh workflow run "build_lineage.yml" --repo qsardor/android_kernel_samsung_exynos9820 --ref lineage-23.2 -f device=d2x -f ksu_version=v3.4.2
 
 # Build Stock One UI 5.1 Kernel with SuSFS for Galaxy Note 10+ 5G (d2xks)
 gh workflow run "build.yml" --repo qsardor/android_kernel_samsung_exynos9820 --ref susfs-next-gen -f device=d2xks
-
-# Download flashable artifacts from the completed run
-gh run download <RUN_ID> --repo qsardor/android_kernel_samsung_exynos9820
 ```
+
+### Direct Release Downloads
+
+Flashable artifacts are automatically published as official releases on [GitHub Releases](https://github.com/qsardor/android_kernel_samsung_exynos9820/releases):
+* `boot_lineage_ksu_d2x.img` (Fastboot / Heimdall / TWRP Image)
+* `lineage-23.2_ksunext_d2x_signed.zip` (Lineage Recovery / TWRP Flashable Zip)
+* `N976N_KSUN_33355_v3.4.2_SUSFS_v1.5.5.tar` (Odin AP archive for Stock)
 
 ### Local Compilation (WSL2 / Linux)
 
 ```bash
-# LineageOS 23.2 (automatically fetches Neutron Clang and dependencies)
-./build_lineage.sh d2x
+# LineageOS 23.2 (with KernelSU-Next v3.4.3)
+./build_lineage.sh d2x v3.4.3
 
 # Stock One UI (automatically fetches Samsung CFP toolchain)
 ./build_kernel.sh d2xks
 ```
-
-Generated flashable artifacts are located in `prebuilts/`:
-* `boot_lineage_ksu_d2x.img` (Direct fastboot / dd boot image)
-* `lineage-23.2_ksunext_d2x_signed.zip` (Recovery flashable archive)
-* `N976N_KSUN_33355_v3.4.2_SUSFS_v1.5.5.tar` (Odin AP archive for Stock)
 
 ---
 
@@ -80,7 +83,7 @@ Generated flashable artifacts are located in `prebuilts/`:
 
 ## 🛠️ Key Architectural Patches
 
-* **KernelSU-Next v3.4.2 Ring 0 Hooks:** Direct manual syscall intercepts in `fs/exec.c`, `fs/open.c`, `fs/read_write.c`, `fs/stat.c`, `fs/namespace.c`, `kernel/sys.c`, `kernel/reboot.c`, and `security/selinux/hooks.c`, eliminating Kprobe and tracepoint instability on legacy 4.14 Samsung kernels.
+* **KernelSU-Next Ring 0 Syscall Intercepts:** Manual hooks in `fs/exec.c`, `fs/open.c`, `fs/read_write.c`, `fs/stat.c`, `fs/namespace.c`, `kernel/sys.c`, `kernel/reboot.c`, and `security/selinux/hooks.c`, eliminating Kprobe / tracepoint instability on legacy 4.14 Samsung kernels.
 * **Hardware Anti-Disconnect:** Neutralizes `unregister_gadget` and userspace `enable 0` calls in `drivers/usb/gadget/configfs.c`, preventing USB data dropouts during Android keyguard / lockscreen transitions.
 * **Headless Panel Resilience:** Bypasses missing MIPI DSI panel ACK checks in `common_mipi_lcd.c`, enabling continuous headless operation without physical screens.
 * **Modern Toolchain Compatibility:** Patched `tz_deploy_tzar.c` and Broadcom `bcmdhd` Wi-Fi makefiles for error-free compilation with Clang 24.0.0 and LLVM integrated assembler.

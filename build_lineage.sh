@@ -2,12 +2,13 @@
 # ==============================================================================
 # Master Kernel Build Script for LineageOS 23.2 (Android 16)
 # Samsung Galaxy Note 10+ 5G (d2x / SM-N976N) & Exynos 9820 / 9825 Series
-# KernelSU-Next v3.4.2 (Manual Ring 0 Hooks) + Headless Display + Anti-Disconnect
+# KernelSU-Next (Manual Ring 0 Hooks) + Headless Display + Anti-Disconnect
 # Attribution: Created by Antigravity & Q.S@RDOR
 # ==============================================================================
 set -e
 
 DEVICE=${1:-d2x}
+KSU_VERSION=${2:-${KSU_VERSION:-v3.4.3}}
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 OUT_DIR="${ROOT_DIR}/out"
 AIK_DIR="${ROOT_DIR}/prebuilts/AIK"
@@ -15,6 +16,7 @@ TOOLCHAIN_DIR="${ROOT_DIR}/toolchain"
 
 echo "=========================================================="
 echo "=== Building LineageOS 23.2 Kernel for ${DEVICE} ==="
+echo "    Target Root Engine: KernelSU-Next ${KSU_VERSION}"
 echo "    Attribution: Created by Antigravity & Q.S@RDOR"
 echo "=========================================================="
 
@@ -36,11 +38,46 @@ export SUBARCH=arm64
 export CC=clang
 export CROSS_COMPILE=aarch64-linux-gnu-
 
-# Apply KernelSU-Next compatibility patch if present
-if [ -f "${ROOT_DIR}/ksu_clang24.patch" ] && [ -d "${ROOT_DIR}/KernelSU-Next" ]; then
-    echo "[*] Applying KernelSU-Next Clang 24 compatibility patch..."
+# Configure KernelSU-Next version / tag
+if [ -d "${ROOT_DIR}/KernelSU-Next" ]; then
+    echo "[*] Configuring KernelSU-Next revision for: ${KSU_VERSION}..."
     cd "${ROOT_DIR}/KernelSU-Next"
-    patch -p1 --forward < "${ROOT_DIR}/ksu_clang24.patch" || true
+    git fetch --tags origin 2>/dev/null || true
+    git fetch origin legacy 2>/dev/null || true
+
+    if git rev-parse --verify "refs/tags/${KSU_VERSION}" >/dev/null 2>&1; then
+        echo "[+] Checking out upstream tag ${KSU_VERSION}..."
+        git checkout -f "refs/tags/${KSU_VERSION}"
+    elif git rev-parse --verify "${KSU_VERSION}" >/dev/null 2>&1; then
+        echo "[+] Checking out ref ${KSU_VERSION}..."
+        git checkout -f "${KSU_VERSION}"
+    elif [ "${KSU_VERSION}" = "v3.4.3" ] && git rev-parse --verify "origin/legacy" >/dev/null 2>&1; then
+        echo "[!] Tag ${KSU_VERSION} not officially cut upstream yet."
+        echo "[!] Automatically tracking latest 'origin/legacy' (pre-v3.4.3 staging)..."
+        git checkout -f origin/legacy
+    else
+        echo "[!] Requested ref ${KSU_VERSION} not found. Falling back to latest origin/legacy..."
+        git checkout -f origin/legacy 2>/dev/null || git checkout -f HEAD
+    fi
+
+    KSU_TAG=$(git describe --tags --always 2>/dev/null || git rev-parse --short HEAD)
+    echo "[+] KernelSU-Next active revision: ${KSU_TAG}"
+
+    # Apply KernelSU-Next Clang 24 compatibility patch if present
+    if [ -f "${ROOT_DIR}/ksu_clang24.patch" ]; then
+        echo "[*] Applying KernelSU-Next Clang 24 compatibility patch..."
+        patch -p1 --forward < "${ROOT_DIR}/ksu_clang24.patch" 2>/dev/null || true
+    fi
+
+    # Fix Clang 24 format specifier warnings if present in supercall.c
+    if [ -f "kernel/supercall/supercall.c" ]; then
+        sed -i 's/ppptr: 0x%lx/ppptr: %p/' kernel/supercall/supercall.c 2>/dev/null || true
+        sed -i 's/u_pptr: 0x%lx/u_pptr: 0x%llx/' kernel/supercall/supercall.c 2>/dev/null || true
+        sed -i 's/, u_pptr);/, (unsigned long long)u_pptr);/' kernel/supercall/supercall.c 2>/dev/null || true
+        sed -i 's/u_ptr: 0x%lx/u_ptr: 0x%llx/' kernel/supercall/supercall.c 2>/dev/null || true
+        sed -i 's/, u_ptr);/, (unsigned long long)u_ptr);/' kernel/supercall/supercall.c 2>/dev/null || true
+    fi
+
     cd "${ROOT_DIR}"
 fi
 
