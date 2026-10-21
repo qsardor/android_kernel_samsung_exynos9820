@@ -25,6 +25,7 @@ if [ ! -f "${TOOLCHAIN_DIR}/bin/clang" ]; then
     cd "${TOOLCHAIN_DIR}"
     curl -fsSL "https://raw.githubusercontent.com/Neutron-Toolchains/antman/main/antman" -o antman
     bash antman -S
+    bash antman --patch=glibc || true
     cd "${ROOT_DIR}"
     echo "[+] Neutron Clang acquired successfully."
 fi
