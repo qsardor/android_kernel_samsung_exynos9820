@@ -1,68 +1,96 @@
 # android_kernel_samsung_exynos9820
 
-Production-grade Samsung Exynos 9820/9825 kernel with integrated KernelSU-Next v3.4.1 (Driver: 33333, UAPI: 5).
+Production-grade Linux 4.14 kernels for Samsung Exynos 9820/9825 devices, engineered for headless edge computing, LineageOS 23.2 (Android 16), Stock One UI 5.1 (Android 12), and KernelSU-Next with automated GitHub Actions CI/CD.
 
-![Architecture](https://img.shields.io/badge/Architecture-aarch64-blue)
-![Kernel](https://img.shields.io/badge/Linux-4.14.113-green)
-![KernelSU-Next](https://img.shields.io/badge/KernelSU--Next-v3.4.1--legacy-orange)
-![License](https://img.shields.io/badge/License-GPL--2.0-red)
+[![LineageOS 23.2 CI](https://github.com/qsardor/android_kernel_samsung_exynos9820/actions/workflows/build_lineage.yml/badge.svg?branch=lineage-23.2)](https://github.com/qsardor/android_kernel_samsung_exynos9820/actions/workflows/build_lineage.yml)
+[![Stock One UI CI](https://github.com/qsardor/android_kernel_samsung_exynos9820/actions/workflows/build.yml/badge.svg?branch=susfs-next-gen)](https://github.com/qsardor/android_kernel_samsung_exynos9820/actions/workflows/build.yml)
+[![License: GPL-2.0](https://img.shields.io/badge/License-GPL--2.0-blue.svg)](LICENSE)
 
-<p align="center">
-  <img src="./docs/ksu_working.png" alt="KernelSU-Next Working on Note 10+ 5G" width="360" />
-</p>
+---
 
-## Why
+> [!IMPORTANT]
+> ### 🖥️ Headless Appliance Note & LineageOS Optimization
+> This kernel and build system are customized for a **headless Samsung Galaxy Note 10+ 5G (`SM-N976N` / `d2x`, Exynos 9825, 12 GB RAM)** operating as an autonomous, 24/7 home server with a broken or detached AMOLED display and touch digitizer.
+>
+> Stock firmware and generic AOSP kernels frequently fail on headless boards due to display driver panics, wake-lock stalls, and USB lockscreen drops. To make LineageOS 23.2 deployment and remote management seamless, this tree incorporates:
+> 1. **MIPI LCD Hardware Bypass (`drivers/video/fbdev/exynos/dpu20/panels/common_mipi_lcd.c`):** Neutralizes display driver panic loops when the device boots without an active AMOLED panel connected.
+> 2. **USB ConfigFS Anti-Disconnect (`drivers/usb/gadget/configfs.c`):** Blocks Android userspace lockscreen and charging policies from dropping USB data lines or unregistering UDC gadgets, guaranteeing unbroken Root ADB access over USB and Wi-Fi.
+> 3. **Normal Boot Enforcer (`boot.img-cmdline`):** Pre-injected with `androidboot.super_partition=system androidboot.mode=normal` to ensure deterministic normal boot directly from partition `boot` (`sda14`), eliminating recovery boot traps.
+> 4. **Automated AIK Repackaging:** Includes integrated Android Image Kitchen (AIK) logic to output both raw `boot.img` and flashable recovery `.zip` packages on every build.
 
-Stock and community kernel trees for Samsung Exynos 9820/9825 fail when compiling with modern root solutions due to four fundamental blockers:
-1. **Non-GKI Syscall Intercept Trap:** Missing `0xDEADBEEF` early-return in `kernel/reboot.c` and missing `ksu_handle_setresuid` in `kernel/sys.c` cause manager supercall failures (`errno 22 EINVAL`) and prevent Zygote `[ksu_driver]` file-descriptor injection.
-2. **SAR Ramdisk Freezes:** Upstream boot ramdisk injection corrupts Samsung One UI 4.1 System-as-Root (SAR), causing early bootloader freezes and bootloops.
-3. **VFS ABBA Deadlock:** Synchronous `fsnotify` parsing in `pkg_observer.c` blocks on `i_rwsem` during Android PMS startup, hanging `system_server` in uninterruptible sleep (`D` state).
-4. **SoC Configuration Conflict:** Default configs conflate Exynos 9820 (S10) with Exynos 9825 (Note 10), leading to clock and power-management stalls on `d2xks`.
+---
 
-This repository provides surgical, production-tested fixes for all four issues, enabling stable, out-of-the-box KernelSU-Next v3.4.1 execution on One UI 4.1.
+## 🌳 Branch Architecture
 
-## Quick Start
+| Branch | Target Operating System | Linux Kernel | Toolchain | Root & Stealth Stack | CI/CD Workflow |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **`lineage-23.2`** | LineageOS 23.2 (Android 16) | `4.14.356-openela-rc1` | Neutron Clang 24 (`antman`) | KernelSU-Next v3.4.2 (Ring 0 Hooks) | [build_lineage.yml](.github/workflows/build_lineage.yml) |
+| **`susfs-next-gen`** | Stock One UI 5.1 (Android 12) | `4.14.113` | Samsung CFP Clang 6.0 + GCC 4.9 | KernelSU-Next v3.4.2 + SuSFS v1.5.5 | [build.yml](.github/workflows/build.yml) |
+
+---
+
+## ⚡ Quick Start: Zero-Storage Cloud Build
+
+Kernel compilation is offloaded to GitHub Actions runners to preserve local disk space and compute resources.
+
+### Trigger Remote Cloud Build (GitHub CLI)
 
 ```bash
-git clone --depth=1 https://github.com/qsardor/android_kernel_samsung_exynos9820.git -b gorhanhee
-cd android_kernel_samsung_exynos9820
+# Build LineageOS 23.2 (Android 16) Kernel for Galaxy Note 10+ 5G (d2x)
+gh workflow run "build_lineage.yml" --repo qsardor/android_kernel_samsung_exynos9820 --ref lineage-23.2 -f device=d2x
+
+# Build Stock One UI 5.1 Kernel with SuSFS for Galaxy Note 10+ 5G (d2xks)
+gh workflow run "build.yml" --repo qsardor/android_kernel_samsung_exynos9820 --ref susfs-next-gen -f device=d2xks
+
+# Download flashable artifacts from the completed run
+gh run download <RUN_ID> --repo qsardor/android_kernel_samsung_exynos9820
+```
+
+### Local Compilation (WSL2 / Linux)
+
+```bash
+# LineageOS 23.2 (automatically fetches Neutron Clang and dependencies)
+./build_lineage.sh d2x
+
+# Stock One UI (automatically fetches Samsung CFP toolchain)
 ./build_kernel.sh d2xks
 ```
 
-The compiled, Odin-flashable archive will be generated at `prebuilts/N976N_KSUN_33333_v3.4.1.tar`.
+Generated flashable artifacts are located in `prebuilts/`:
+* `boot_lineage_ksu_d2x.img` (Direct fastboot / dd boot image)
+* `lineage-23.2_ksunext_d2x_signed.zip` (Recovery flashable archive)
+* `N976N_KSUN_33355_v3.4.2_SUSFS_v1.5.5.tar` (Odin AP archive for Stock)
 
-## Features
+---
 
-- **Built-in KernelSU-Next Legacy v3.4.1 (33333):** Integrated in-tree under `drivers/kernelsu` with manual hook mode and UAPI 5 support.
-- **Surgical Non-GKI Supercalls:** Early return on `0xDEADBEEF` in `kernel/reboot.c` and clean Zygote credential specialization in `kernel/sys.c`.
-- **Asynchronous Package Observer:** Replaces synchronous `fsnotify` parsing with non-blocking Linux workqueues (`schedule_work`), eliminating `system_server` uninterruptible sleep.
-- **Clean SAR Boot:** Preserves stock Samsung SAR rootfs structure with zero ramdisk corruption.
-- **Automated Crowning Service:** Includes `tools/ksu_manager_guard/00-crown-manager.sh` to dynamically crown manager UIDs across cold reboots.
-- **Single-Command Odin Packaging:** Automatically packages `boot.img`, `dt.img`, and `dtbo.img` into a flashable `.tar`.
-- **Automated Toolchain Acquisition:** `build_kernel.sh` automatically downloads and unpacks the required Samsung CFP Clang 6.0.1 and GCC 4.9 CFP toolchains on demand.
+## 📱 Supported Devices
 
-## Supported Devices
-
-| Codename | Device | SoC | Defconfig |
+| Codename | Model | SoC | Tested OS |
 | :--- | :--- | :--- | :--- |
-| `d2xks` | Galaxy Note 10+ 5G (`SM-N976N`) | Exynos 9825 | `exynos9820-d2xks_defconfig` |
-| `d2s` | Galaxy Note 10 (`SM-N970F`) | Exynos 9825 | `exynos9820-d2s_defconfig` |
-| `d2x` | Galaxy Note 10+ (`SM-N975F`) | Exynos 9825 | `exynos9820-d2x_defconfig` |
-| `beyond1lte` | Galaxy S10 (`SM-G973F`) | Exynos 9820 | `exynos9820-beyond1lte_defconfig` |
-| `beyond2lte` | Galaxy S10+ (`SM-G975F`) | Exynos 9820 | `exynos9820-beyond2lte_defconfig` |
-| `beyond0lte` | Galaxy S10e (`SM-G970F`) | Exynos 9820 | `exynos9820-beyond0lte_defconfig` |
+| `d2x` / `d2xks` | Samsung Galaxy Note 10+ 5G (`SM-N976N`) | Exynos 9825 | LineageOS 23.2 / One UI 5.1 |
+| `d1x` / `d1xks` | Samsung Galaxy Note 10 5G (`SM-N971N`) | Exynos 9825 | LineageOS 23.2 / One UI 5.1 |
+| `d2` / `d2s` | Samsung Galaxy Note 10+ 4G (`SM-N975F`) | Exynos 9825 | LineageOS 23.2 / One UI 4.1 |
+| `d1` | Samsung Galaxy Note 10 4G (`SM-N970F`) | Exynos 9825 | LineageOS 23.2 / One UI 4.1 |
+| `beyond0lte` | Samsung Galaxy S10e (`SM-G970F`) | Exynos 9820 | LineageOS 23.2 / One UI 4.1 |
+| `beyond1lte` | Samsung Galaxy S10 (`SM-G973F`) | Exynos 9820 | LineageOS 23.2 / One UI 4.1 |
+| `beyond2lte` | Samsung Galaxy S10+ (`SM-G975F`) | Exynos 9820 | LineageOS 23.2 / One UI 4.1 |
+| `beyondx` | Samsung Galaxy S10 5G (`SM-G977B`/`N`) | Exynos 9820 | LineageOS 23.2 / One UI 4.1 |
 
-## Build Environment
+---
 
-- **Architecture:** `arm64` (aarch64)
-- **Compiler:** Clang 6.0.1 (`clang-4639204-cfp-jopp`)
-- **Cross-Compiler:** GCC 4.9 CFP (`aarch64-linux-android-`)
-- **Target OS:** Android 12 (One UI 4.1)
+## 🛠️ Key Architectural Patches
 
-## Credits
+* **KernelSU-Next v3.4.2 Ring 0 Hooks:** Direct manual syscall intercepts in `fs/exec.c`, `fs/open.c`, `fs/read_write.c`, `fs/stat.c`, `fs/namespace.c`, `kernel/sys.c`, `kernel/reboot.c`, and `security/selinux/hooks.c`, eliminating Kprobe and tracepoint instability on legacy 4.14 Samsung kernels.
+* **Hardware Anti-Disconnect:** Neutralizes `unregister_gadget` and userspace `enable 0` calls in `drivers/usb/gadget/configfs.c`, preventing USB data dropouts during Android keyguard / lockscreen transitions.
+* **Headless Panel Resilience:** Bypasses missing MIPI DSI panel ACK checks in `common_mipi_lcd.c`, enabling continuous headless operation without physical screens.
+* **Modern Toolchain Compatibility:** Patched `tz_deploy_tzar.c` and Broadcom `bcmdhd` Wi-Fi makefiles for error-free compilation with Clang 24.0.0 and LLVM integrated assembler.
 
-Created together by **Antigravity** & **Q.S@RDOR**.
+---
 
-## License
+## 📜 Credits & Authorship
 
-This project is licensed under the [GNU General Public License v2.0](LICENSE).
+Created by **Antigravity** & **Q.S@RDOR**.
+
+## ⚖️ License
+
+This project is open-source software licensed under the [GNU General Public License v2.0](LICENSE).
