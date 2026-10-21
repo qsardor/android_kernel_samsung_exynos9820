@@ -1,22 +1,32 @@
-name: Samsung Exynos 9820/9825 Kernel CI
+name: Samsung Exynos 9820/9825 Kernel CI (Stock One UI + KernelSU-Next + SuSFS)
 
 on:
   workflow_dispatch:
+    inputs:
+      device:
+        description: 'Target Device Model'
+        required: true
+        default: 'd2xks'
+        type: choice
+        options:
+          - d2xks
+          - d1xks
+  push:
+    branches:
+      - susfs-next-gen
+    tags:
+      - 'v*'
 
 jobs:
   build:
-    name: Build Kernel (${{ matrix.device }})
+    name: Build Kernel (${{ github.event.inputs.device || 'd2xks' }})
     runs-on: ubuntu-22.04
-    strategy:
-      fail-fast: false
-      matrix:
-        device:
-          - d2xks
 
     steps:
       - name: Checkout Kernel Source
         uses: actions/checkout@v7
         with:
+          submodules: recursive
           fetch-depth: 1
 
       - name: Install Build Dependencies
@@ -35,14 +45,29 @@ jobs:
             fi
           done
 
-      - name: Compile Kernel & Package Odin Archive
+      - name: Compile Kernel & Package Odin / TWRP Packages
         run: |
           chmod +x build_kernel.sh
           chmod -R +x prebuilts/
-          ./build_kernel.sh ${{ matrix.device }}
+          ./build_kernel.sh ${{ github.event.inputs.device || 'd2xks' }}
 
       - name: Upload Flashable Artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: ${{ matrix.device }}_KSUN_v3.4.1_Odin_tar
-          path: prebuilts/*.tar
+          name: ${{ github.event.inputs.device || 'd2xks' }}_KSUN_v3.4.2_SUSFS_v1.5.5
+          path: |
+            prebuilts/*.tar
+            prebuilts/*.zip
+
+      - name: Publish GitHub Release (on tag)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v3
+        with:
+          files: |
+            prebuilts/*.tar
+            prebuilts/*.zip
+          name: ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

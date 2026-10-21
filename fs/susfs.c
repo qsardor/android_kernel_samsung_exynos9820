@@ -62,7 +62,11 @@ void ksu_try_umount(const char *mnt, bool check_mnt, int flags, uid_t uid)
 		char __user *usermnt = (char __user *)mnt;
 		mm_segment_t old_fs = get_fs();
 		set_fs(KERNEL_DS);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 17, 0)
+		ksys_umount(usermnt, flags);
+#else
 		sys_umount(usermnt, flags);
+#endif
 		set_fs(old_fs);
 	}
 }

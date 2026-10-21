@@ -418,10 +418,10 @@ static ssize_t gadget_dev_desc_UDC_store(struct config_item *item,
 	mutex_lock(&gi->lock);
 
 	if (!strlen(name) || strcmp(name, "none") == 0) {
-		ret = unregister_gadget(gi);
-		if (ret)
-			goto err;
+		pr_info("usb: %s: [ANTI-DISCONNECT] Blocked unregister_gadget! Keeping USB active.\n", __func__);
 		kfree(name);
+		mutex_unlock(&gi->lock);
+		return len;
 #ifdef CONFIG_USB_CONFIGFS_UEVENT
 		if (!list_empty(&gi->linked_func) && gi->symboliclink_change_mode) {
 			pr_info("usb: %s: GSI_image : Clear cfg->func_list\n", __func__);
@@ -2074,8 +2074,9 @@ static ssize_t enable_store(struct device *pdev, struct device_attribute *attr,
 		set_usb_enable_state();
 #endif
 	} else if (!enabled && dev->enabled) {
-		pr_info("usb: %s: Disconnect gadget: enabled=%d, dev->enabled=%d\n",
-				__func__, enabled, dev->enabled);
+		pr_info("usb: %s: [ANTI-DISCONNECT] Blocked enable 0 disconnect! Keeping USB active.\n", __func__);
+		mutex_unlock(&dev->lock);
+		return size;
 #ifdef CONFIG_USB_ANDROID_SAMSUNG_COMPOSITE
 		/* avoid sending a disconnect switch event
 		 * until after we disconnect.
