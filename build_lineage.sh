@@ -8,7 +8,7 @@
 set -e
 
 DEVICE=${1:-d2x}
-KSU_VERSION=${2:-${KSU_VERSION:-v3.4.3}}
+KSU_VERSION=${2:-${KSU_VERSION:-latest}}
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 OUT_DIR="${ROOT_DIR}/out"
 AIK_DIR="${ROOT_DIR}/prebuilts/AIK"
@@ -16,7 +16,7 @@ TOOLCHAIN_DIR="${ROOT_DIR}/toolchain"
 
 echo "=========================================================="
 echo "=== Building LineageOS 23.2 Kernel for ${DEVICE} ==="
-echo "    Target Root Engine: KernelSU-Next ${KSU_VERSION}"
+echo "    Target Root Engine: KernelSU-Next (${KSU_VERSION})"
 echo "    Attribution: Created by Antigravity & Q.S@RDOR"
 echo "=========================================================="
 
@@ -45,16 +45,15 @@ if [ -d "${ROOT_DIR}/KernelSU-Next" ]; then
     git fetch --tags origin 2>/dev/null || true
     git fetch origin legacy 2>/dev/null || true
 
-    if git rev-parse --verify "refs/tags/${KSU_VERSION}" >/dev/null 2>&1; then
+    if [ "${KSU_VERSION}" = "latest" ] || [ -z "${KSU_VERSION}" ]; then
+        echo "[+] Automatically selecting 'latest' upstream legacy KernelSU-Next..."
+        git checkout -f origin/legacy
+    elif git rev-parse --verify "refs/tags/${KSU_VERSION}" >/dev/null 2>&1; then
         echo "[+] Checking out upstream tag ${KSU_VERSION}..."
         git checkout -f "refs/tags/${KSU_VERSION}"
     elif git rev-parse --verify "${KSU_VERSION}" >/dev/null 2>&1; then
         echo "[+] Checking out ref ${KSU_VERSION}..."
         git checkout -f "${KSU_VERSION}"
-    elif [ "${KSU_VERSION}" = "v3.4.3" ] && git rev-parse --verify "origin/legacy" >/dev/null 2>&1; then
-        echo "[!] Tag ${KSU_VERSION} not officially cut upstream yet."
-        echo "[!] Automatically tracking latest 'origin/legacy' (pre-v3.4.3 staging)..."
-        git checkout -f origin/legacy
     else
         echo "[!] Requested ref ${KSU_VERSION} not found. Falling back to latest origin/legacy..."
         git checkout -f origin/legacy 2>/dev/null || git checkout -f HEAD
@@ -62,6 +61,8 @@ if [ -d "${ROOT_DIR}/KernelSU-Next" ]; then
 
     KSU_TAG=$(git describe --tags --always 2>/dev/null || git rev-parse --short HEAD)
     echo "[+] KernelSU-Next active revision: ${KSU_TAG}"
+    mkdir -p "${OUT_DIR}"
+    echo "${KSU_TAG}" > "${OUT_DIR}/ksu_tag.txt"
 
     # Apply KernelSU-Next Clang 24 compatibility patch if present
     if [ -f "${ROOT_DIR}/ksu_clang24.patch" ]; then

@@ -12,9 +12,9 @@ on:
           - d2x
           - d1x
       ksu_version:
-        description: 'KernelSU-Next Version/Tag (e.g. v3.4.3)'
+        description: 'KernelSU-Next Version ("latest" for newest upstream release, or specify tag/branch)'
         required: true
-        default: 'v3.4.3'
+        default: 'latest'
         type: string
   push:
     branches:
@@ -27,7 +27,7 @@ permissions:
 
 jobs:
   build:
-    name: Build LineageOS 23.2 Kernel (${{ github.event.inputs.device || 'd2x' }}) - KSU ${{ github.event.inputs.ksu_version || 'v3.4.3' }}
+    name: Build LineageOS 23.2 Kernel (${{ github.event.inputs.device || 'd2x' }}) - KSU ${{ github.event.inputs.ksu_version || 'latest' }}
     runs-on: ubuntu-22.04
 
     steps:
@@ -58,35 +58,40 @@ jobs:
         run: |
           chmod +x build_lineage.sh
           chmod -R +x prebuilts/
-          ./build_lineage.sh ${{ github.event.inputs.device || 'd2x' }} ${{ github.event.inputs.ksu_version || 'v3.4.3' }}
-
-      - name: Upload Flashable Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ github.event.inputs.device || 'd2x' }}_LineageOS23.2_KSUN_${{ github.event.inputs.ksu_version || 'v3.4.3' }}
-          path: |
-            prebuilts/*.img
-            prebuilts/*.zip
+          ./build_lineage.sh ${{ github.event.inputs.device || 'd2x' }} ${{ github.event.inputs.ksu_version || 'latest' }}
 
       - name: Determine Release Information
         id: release_info
         run: |
+          KSU_TAG="latest"
+          if [ -f "out/ksu_tag.txt" ]; then
+            KSU_TAG=$(cat out/ksu_tag.txt)
+          fi
           if [[ "${{ github.ref }}" == refs/tags/* ]]; then
             TAG_NAME="${GITHUB_REF#refs/tags/}"
           else
-            TAG_NAME="lineage-23.2-${{ github.event.inputs.ksu_version || 'v3.4.3' }}"
+            TAG_NAME="lineage-23.2-${KSU_TAG}"
           fi
           echo "tag_name=${TAG_NAME}" >> $GITHUB_OUTPUT
+          echo "ksu_tag=${KSU_TAG}" >> $GITHUB_OUTPUT
+
+      - name: Upload Flashable Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ github.event.inputs.device || 'd2x' }}_LineageOS23.2_KSUN_${{ steps.release_info.outputs.ksu_tag }}
+          path: |
+            prebuilts/*.img
+            prebuilts/*.zip
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.release_info.outputs.tag_name }}
-          name: LineageOS 23.2 Kernel (${{ github.event.inputs.device || 'd2x' }}) - KernelSU-Next ${{ github.event.inputs.ksu_version || 'v3.4.3' }}
+          name: LineageOS 23.2 Kernel (${{ github.event.inputs.device || 'd2x' }}) - KernelSU-Next ${{ steps.release_info.outputs.ksu_tag }}
           body: |
             ### LineageOS 23.2 (Android 16) Kernel Flashable Package
             - **Target Device:** Samsung Galaxy Note 10+ 5G (`${{ github.event.inputs.device || 'd2x' }}` / Exynos 9825)
-            - **Root Framework:** KernelSU-Next `${{ github.event.inputs.ksu_version || 'v3.4.3' }}` (Manual Ring 0 Hooks)
+            - **Root Engine:** KernelSU-Next `${{ steps.release_info.outputs.ksu_tag }}` (Manual Ring 0 Hooks)
             - **Kernel Version:** Linux 4.14.356 (OpenELA)
             - **Headless Display Fix:** Integrated MIPI LCD uninit / panel bypass
             - **Anti-Disconnect Fix:** Persistent ADB gadget USB state
@@ -99,6 +104,7 @@ jobs:
           files: |
             prebuilts/*.img
             prebuilts/*.zip
+          make_latest: true
           draft: false
           prerelease: false
         env:

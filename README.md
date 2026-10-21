@@ -25,7 +25,7 @@ Production-grade Linux 4.14 kernels for Samsung Exynos 9820/9825 devices, engine
 
 | Branch | Target Operating System | Linux Kernel | Toolchain | Root & Stealth Stack | CI/CD Workflow |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **`lineage-23.2`** | LineageOS 23.2 (Android 16) | `4.14.356-openela-rc1` | Neutron Clang 24 (`antman`) | KernelSU-Next v3.4.2 / v3.4.3 (Ring 0 Hooks) | [build_lineage.yml](.github/workflows/build_lineage.yml) |
+| **`lineage-23.2`** | LineageOS 23.2 (Android 16) | `4.14.356-openela-rc1` | Neutron Clang 24 (`antman`) | KernelSU-Next `latest` (Manual Ring 0 Hooks) | [build_lineage.yml](.github/workflows/build_lineage.yml) |
 | **`susfs-next-gen`** | Stock One UI 5.1 (Android 12) | `4.14.113` | Samsung CFP Clang 6.0 + GCC 4.9 | KernelSU-Next v3.4.2 + SuSFS v1.5.5 | [build.yml](.github/workflows/build.yml) |
 
 ---
@@ -37,11 +37,11 @@ Kernel compilation is offloaded to GitHub Actions runners to preserve local disk
 ### Trigger Remote Cloud Build (GitHub CLI)
 
 ```bash
-# Build LineageOS 23.2 (Android 16) Kernel with KernelSU-Next v3.4.3 (Default)
-gh workflow run "build_lineage.yml" --repo qsardor/android_kernel_samsung_exynos9820 --ref lineage-23.2 -f device=d2x -f ksu_version=v3.4.3
+# Build LineageOS 23.2 (Android 16) Kernel with Latest Upstream KernelSU-Next (Default)
+gh workflow run "build_lineage.yml" --repo qsardor/android_kernel_samsung_exynos9820 --ref lineage-23.2 -f device=d2x -f ksu_version=latest
 
-# Build LineageOS 23.2 with KernelSU-Next v3.4.2
-gh workflow run "build_lineage.yml" --repo qsardor/android_kernel_samsung_exynos9820 --ref lineage-23.2 -f device=d2x -f ksu_version=v3.4.2
+# Build LineageOS 23.2 with a specific KernelSU-Next tag
+gh workflow run "build_lineage.yml" --repo qsardor/android_kernel_samsung_exynos9820 --ref lineage-23.2 -f device=d2x -f ksu_version=v3.4.0-legacy
 
 # Build Stock One UI 5.1 Kernel with SuSFS for Galaxy Note 10+ 5G (d2xks)
 gh workflow run "build.yml" --repo qsardor/android_kernel_samsung_exynos9820 --ref susfs-next-gen -f device=d2xks
@@ -57,8 +57,8 @@ Flashable artifacts are automatically published as official releases on [GitHub 
 ### Local Compilation (WSL2 / Linux)
 
 ```bash
-# LineageOS 23.2 (with KernelSU-Next v3.4.3)
-./build_lineage.sh d2x v3.4.3
+# LineageOS 23.2 (auto-tracks latest upstream KernelSU-Next)
+./build_lineage.sh d2x latest
 
 # Stock One UI (automatically fetches Samsung CFP toolchain)
 ./build_kernel.sh d2xks
