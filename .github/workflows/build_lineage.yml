@@ -1,0 +1,73 @@
+name: LineageOS 23.2 Kernel CI (Android 16 + KernelSU-Next)
+
+on:
+  workflow_dispatch:
+    inputs:
+      device:
+        description: 'Target Device Model'
+        required: true
+        default: 'd2x'
+        type: choice
+        options:
+          - d2x
+          - d1x
+  push:
+    branches:
+      - lineage-23.2
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    name: Build LineageOS 23.2 Kernel (${{ github.event.inputs.device || 'd2x' }})
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v7
+        with:
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: Install Build Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential bc bison flex libssl-dev libelf-dev \
+            libncurses5 libtinfo5 libncurses-dev zip cpio \
+            python3 curl rsync liblz4-tool git
+          for lib in libtinfo libncurses; do
+            if [ ! -f /usr/lib/x86_64-linux-gnu/${lib}.so.5 ] && [ -f /usr/lib/x86_64-linux-gnu/${lib}.so.6 ]; then
+              sudo ln -sf /usr/lib/x86_64-linux-gnu/${lib}.so.6 /usr/lib/x86_64-linux-gnu/${lib}.so.5
+            fi
+            if [ ! -f /lib/x86_64-linux-gnu/${lib}.so.5 ] && [ -f /lib/x86_64-linux-gnu/${lib}.so.6 ]; then
+              sudo ln -sf /lib/x86_64-linux-gnu/${lib}.so.6 /lib/x86_64-linux-gnu/${lib}.so.5
+            fi
+          done
+
+      - name: Compile LineageOS Kernel & Package Boot Image
+        run: |
+          chmod +x build_lineage.sh
+          chmod -R +x prebuilts/
+          ./build_lineage.sh ${{ github.event.inputs.device || 'd2x' }}
+
+      - name: Upload Flashable Artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ github.event.inputs.device || 'd2x' }}_LineageOS23.2_KSUN_v3.4.2
+          path: |
+            prebuilts/*.img
+            prebuilts/*.zip
+
+      - name: Publish GitHub Release (on tag)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v3
+        with:
+          files: |
+            prebuilts/*.img
+            prebuilts/*.zip
+          name: ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
