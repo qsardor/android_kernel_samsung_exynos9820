@@ -1,0 +1,6 @@
+id=headless_guardian
+name=Headless Guardian & OTA Survival
+version=v1.0.0
+versionCode=100
+author=Antigravity & Q.S@RDOR
+description=Guarantees persistent ADB, enforces USB anti-disconnect, kills lockscreen restrictions, and protects custom headless kernel from OTA overwrites on Samsung Galaxy Note 10+ 5G (Exynos 9825).
